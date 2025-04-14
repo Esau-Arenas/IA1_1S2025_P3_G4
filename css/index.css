@@ -1,0 +1,77 @@
+body {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f0f0f0;
+  }
+  
+  canvas {
+    display: block;
+  }
+  
+  #modal {
+    position: fixed;
+    z-index: 2;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  #modalContent {
+    background: white;
+    padding: 30px 40px;
+    border-radius: 15px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    max-width: 400px;
+    width: 90%;
+  }
+  
+  #modalContent h2 {
+    margin-bottom: 10px;
+    font-size: 24px;
+    color: #333;
+  }
+  
+  #modalContent p {
+    margin-bottom: 20px;
+    color: #555;
+  }
+  
+  #jsonInput {
+    margin-bottom: 15px;
+    padding: 8px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    cursor: pointer;
+  }
+  
+  #createButton {
+    display: none;
+    background-color: #1d72b8;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+  }
+  
+  #createButton:hover {
+    background-color: #155a96;
+    transform: scale(1.05);
+  }
+  
+  #createButton:active {
+    transform: scale(0.98);
+  }
+  
+  #controls {
+    display: none;
+  }
+  
