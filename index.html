@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <title>IA1 - MazeBot</title>
   <link rel="stylesheet" href="css/index.css">
+  <!-- CDN de Three.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.min.js"></script>
 </head>
 
 <body>
@@ -17,103 +21,8 @@
   </div>
 </div>
 
-<script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
-<script>
-  let scene, camera, renderer;
-  let brickTexture, grassTexture;
-  let paredes = [];
-  let ancho = 0, alto = 0;
 
-  const textureLoader = new THREE.TextureLoader();
-  brickTexture = textureLoader.load('https://images.unsplash.com/photo-1495578942200-c5f5d2137def?fm=jpg&q=60&w=3000&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8YnJpY2slMjB0ZXh0dXJlfGVufDB8fDB8fHww');
-  brickTexture.wrapS = THREE.RepeatWrapping;
-  brickTexture.wrapT = THREE.RepeatWrapping;
-  brickTexture.repeat.set(1, 1);
-
-  grassTexture = textureLoader.load('https://thumbs.dreamstime.com/b/la-imagen-del-detalle-de-superficie-textura-piso-ladrillo-para-el-fondo-102993035.jpg');
-  grassTexture.wrapS = THREE.RepeatWrapping;
-  grassTexture.wrapT = THREE.RepeatWrapping;
-
-  function init() {
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf0f0f0);
-
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(5, 10, 10);
-    camera.lookAt(0, 0, 0);
-
-    renderer = new THREE.WebGLRenderer();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(10, 20, 10);
-    scene.add(light);
-
-    const ambientLight = new THREE.AmbientLight(0x404040);
-    scene.add(ambientLight);
-
-    animate();
-  }
-
-  function animate() {
-    requestAnimationFrame(animate);
-    renderer.render(scene, camera);
-  }
-
-  function crearLaberinto() {
-    document.getElementById("modal").style.display = "none";
-
-    // Limpiar escena (excepto cámara y luces)
-    scene.children = scene.children.filter(obj =>
-      obj.type === 'PerspectiveCamera' || obj.type.includes('Light')
-    );
-
-    // Suelo
-    grassTexture.repeat.set(ancho, alto);
-    const floorGeometry = new THREE.PlaneGeometry(ancho, alto);
-    const floorMaterial = new THREE.MeshStandardMaterial({
-      map: grassTexture,
-      side: THREE.DoubleSide
-    });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    scene.add(floor);
-
-    // Paredes
-    const wallGeometry = new THREE.BoxGeometry(1, 2, 1);
-    const wallMaterial = new THREE.MeshStandardMaterial({ map: brickTexture });
-
-    paredes.forEach(([x, y]) => {
-      const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-      wall.position.set(x - ancho / 2 + 0.5, 1, y - alto / 2 + 0.5);
-      scene.add(wall);
-    });
-  }
-
-  // Manejo de archivo JSON
-  document.getElementById("jsonInput").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(event) {
-      try {
-        const data = JSON.parse(event.target.result);
-        ancho = data.ancho;
-        alto = data.alto;
-        paredes = data.paredes;
-        document.getElementById("createButton").style.display = "inline-block";
-      } catch (err) {
-        alert("Error al leer el archivo JSON.");
-      }
-    };
-    reader.readAsText(file);
-  });
-
-  document.getElementById("createButton").addEventListener("click", crearLaberinto);
-  init();
-</script>
+<script src="js/index.js"></script>
 
 </body>
 </html>
