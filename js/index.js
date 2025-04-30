@@ -1,252 +1,327 @@
+// js/index.js
+
+// —— Variables globales ——
 let scene, camera, renderer, controls;
 let brickTexture, grassTexture;
-let paredes = [];
-let ancho = 0, alto = 0;
-let inicio = [0, 0], fin = [0, 0];
+let paredes = [], ancho = 0, alto = 0;
+let inicio = [0,0], fin = [0,0];
 let fbxModel, mixer;
 
+const clock = new THREE.Clock();
+
+// Cola de movimiento
+let movementQueue = [];
+let movementTarget = null;
+let movementDir    = null;
+const movementSpeed = 2; // unidades/segundo
+
+// —— Inicialización ——
 function init() {
-    // Escena
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf0f0f0);
+  // Escena
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf0f0f0);
 
-    // Cámara
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(5, 10, 15);
+  // Cámara
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  camera.position.set(5,10,15);
 
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
+  // Renderer
+  renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
 
-    // Controles de órbita
-    controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.minDistance = 5;
-    controls.maxDistance = 50;
-    controls.maxPolarAngle = Math.PI * 0.9;
+  // OrbitControls
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+  controls.minDistance = 5;
+  controls.maxDistance = 50;
+  controls.maxPolarAngle = Math.PI * 0.9;
 
-    // Luces
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(10, 20, 10);
-    scene.add(light);
-
-    const ambientLight = new THREE.AmbientLight(0x404040);
-    scene.add(ambientLight);
-
-    // Texturas
-    const textureLoader = new THREE.TextureLoader();
-    brickTexture = textureLoader.load('https://images.unsplash.com/photo-1495578942200-c5f5d2137def?fm=jpg&q=60&w=3000&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8YnJpY2slMjB0ZXh0dXJlfGVufDB8fDB8fHww');
-    brickTexture.wrapS = THREE.RepeatWrapping;
-    brickTexture.wrapT = THREE.RepeatWrapping;
-    brickTexture.repeat.set(1, 1);
-
-    grassTexture = textureLoader.load('https://thumbs.dreamstime.com/b/la-imagen-del-detalle-de-superficie-textura-piso-ladrillo-para-el-fondo-102993035.jpg');
-    grassTexture.wrapS = THREE.RepeatWrapping;
-    grassTexture.wrapT = THREE.RepeatWrapping;
-
-    // Eventos
-    window.addEventListener('resize', onWindowResize);
-    document.getElementById("jsonInput").addEventListener("change", handleFileUpload);
-    document.getElementById("createButton").addEventListener("click", crearLaberinto);
-
-    animate();
-}
-
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-function animate() {
-    requestAnimationFrame(animate);
-    if (controls) controls.update();
-    if (mixer) mixer.update(0.016);
-    renderer.render(scene, camera);
-}
-
-function crearLaberinto() {
-  document.getElementById("modal").style.display = "none";
-
-  // Limpieza selectiva de la escena
-  const toRemove = [];
-  scene.children.forEach(obj => {
-      if (![camera, controls, renderer.domElement].includes(obj) && !obj.isLight) {
-          toRemove.push(obj);
-      }
-  });
-  toRemove.forEach(obj => scene.remove(obj));
-
-  // Asegurar luces
+  // Luces
   addLightsIfNeeded();
 
-  // Crear suelo con dimensiones exactas
-  const floorSize = { width: ancho, height: alto };
-  grassTexture.repeat.set(floorSize.width, floorSize.height);
-  const floorGeometry = new THREE.PlaneGeometry(floorSize.width, floorSize.height);
-  const floorMaterial = new THREE.MeshStandardMaterial({
-      map: grassTexture,
-      side: THREE.DoubleSide
-  });
-  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.y = 0; // Levemente bajo el nivel 0
-  floor.receiveShadow = true;
+  // Texturas
+  const tl = new THREE.TextureLoader();
+  brickTexture = tl.load('https://images.unsplash.com/photo-1495578942200-c5f5d2137def?fm=jpg&q=60&w=3000');
+  brickTexture.wrapS = brickTexture.wrapT = THREE.RepeatWrapping;
+  brickTexture.repeat.set(1,1);
+
+  grassTexture = tl.load('https://thumbs.dreamstime.com/b/la-imagen-del-detalle-de-superficie-textura-piso-ladrillo-para-el-fondo-102993035.jpg');
+  grassTexture.wrapS = grassTexture.wrapT = THREE.RepeatWrapping;
+
+  // Eventos
+  window.addEventListener('resize', onWindowResize);
+  document.getElementById('jsonInput'   ).addEventListener('change', handleFileUpload);
+  document.getElementById('createButton').addEventListener('click', crearLaberinto);
+  document.getElementById('runButton'   ).addEventListener('click', runSearch);
+  document.getElementById('resetButton' ).addEventListener('click', resetMovement);
+
+  animate();
+}
+
+// —— Render loop ——
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+
+  controls.update();
+  if (mixer) mixer.update(delta);
+  updateMovement(delta);
+
+  renderer.render(scene, camera);
+}
+
+// —— Ventana redimensionada ——
+function onWindowResize() {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// —— Crear laberinto ——
+function crearLaberinto() {
+  // Ocultar modal y mostrar controles
+  document.getElementById('modal'   ).style.display = 'none';
+  document.getElementById('controls').style.display = 'block';
+
+  // Limpiar escena (menos luces y cámara)
+  scene.children
+    .filter(o => !o.isLight && o.type!=='Camera')
+    .forEach(o => scene.remove(o));
+
+  // Suelo
+  grassTexture.repeat.set(ancho, alto);
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(ancho, alto),
+    new THREE.MeshStandardMaterial({ map: grassTexture, side: THREE.DoubleSide })
+  );
+  floor.rotation.x = -Math.PI/2;
   scene.add(floor);
 
-  // Crear paredes alineadas con el suelo
-  const wallHeight = 2; // Altura de las paredes
-  const wallGeometry = new THREE.BoxGeometry(1, wallHeight, 1); 
-
-  
-  const wallMaterial = new THREE.MeshStandardMaterial({ 
-      map: brickTexture,
-      color: 0xaaaaaa // Color base para textura
+  // Paredes
+  const wallGeo = new THREE.BoxGeometry(1,2,1);
+  const wallMat = new THREE.MeshStandardMaterial({ map: brickTexture, color:0xaaaaaa });
+  paredes.forEach(([x,y]) => {
+    const w = new THREE.Mesh(wallGeo, wallMat);
+    w.position.set(
+      x - Math.floor(ancho/2) + 0.5,
+      1,
+      y - Math.floor(alto /2) + 0.5
+    );
+    scene.add(w);
   });
 
-  paredes.forEach(([x, y]) => {
-      const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-      
-      // Posición exacta para alineación perfecta
-      wall.position.set(
-          x - Math.floor(ancho / 2) + 0.5, 
-          1, // Altura basada en tamaño de pared (2 unidades)
-          y - Math.floor(alto / 2) + 0.5
-      );
-      
-      wall.castShadow = true;
-      wall.receiveShadow = true;
-      scene.add(wall);
-  });
+  // Carga y posiciona el modelo
+  const [sx,sy] = inicio;
+  agregarGLB(sx - Math.floor(ancho/2)+0.5, sy - Math.floor(alto/2)+0.5);
 
-  // Posicionamiento preciso del modelo
-  const [startX, startY] = inicio;
-  const modelPosX = startX - Math.floor(ancho / 2) + 0.5;
-  const modelPosZ = startY - Math.floor(alto / 2) + 0.5;
-  agregarGLB(modelPosX, modelPosZ);
-
-  // Configuración de cámara adaptativa
-  setupCamera();
-}
-
-function addLightsIfNeeded() {
-  if (!scene.children.some(obj => obj.isLight)) {
-      // Luz direccional principal
-      const mainLight = new THREE.DirectionalLight(0xffffff, 1);
-      mainLight.position.set(10, 20, 10);
-      mainLight.castShadow = true;
-      mainLight.shadow.mapSize.width = 2048;
-      mainLight.shadow.mapSize.height = 2048;
-      scene.add(mainLight);
-
-      // Luz ambiental
-      const ambientLight = new THREE.AmbientLight(0x404040);
-      scene.add(ambientLight);
-
-      // Luz de relleno
-      const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
-      fillLight.position.set(-10, 10, -10);
-      scene.add(fillLight);
-  }
-}
-
-function setupCamera() {
-  const maxDimension = Math.max(ancho, alto);
-  const cameraHeight = maxDimension * 1.5;
-  const cameraDistance = maxDimension * 1.8;
-
-  camera.position.set(
-      cameraDistance,
-      cameraHeight,
-      cameraDistance
-  );
-  
-  controls.target.set(0, 0, 0);
-  controls.maxDistance = maxDimension * 3;
-  controls.minDistance = maxDimension * 0.5;
+  // Cámara adaptativa
+  const m = Math.max(ancho,alto);
+  camera.position.set(m*1.8, m*1.5, m*1.8);
+  controls.target.set(0,0,0);
   controls.update();
 }
 
-function agregarGLB(posX, posZ) {
-  const loader = new THREE.GLTFLoader();
+// —— Luces ——
+function addLightsIfNeeded() {
+  if (!scene.children.some(o=>o.isLight)) {
+    const d1 = new THREE.DirectionalLight(0xffffff,1);
+    d1.position.set(10,20,10);
+    scene.add(d1);
+    scene.add(new THREE.AmbientLight(0x404040));
+    const d2 = new THREE.DirectionalLight(0xffffff,0.5);
+    d2.position.set(-10,10,-10);
+    scene.add(d2);
+  }
+}
 
-  loader.load(
-      '/models/characters/shrek_walk_cycle.glb',
-      function (gltf) {
-          fbxModel = gltf.scene;
-          
-          // Escala proporcional al laberinto
-          const scale = Math.min(ancho, alto) * 0.12;
-          fbxModel.scale.set(scale, scale, scale);
-          
-          // Posición exacta sobre el suelo
-          fbxModel.position.set(
-              posX,
-              scale * 0.015, // Ajuste para que "toque" el suelo
-              posZ
-          );
-          
-          // Configuración de sombras
-          fbxModel.traverse(function(node) {
-              if (node.isMesh) {
-                  node.castShadow = true;
-                  node.receiveShadow = true;
-              }
-          });
-
-          scene.add(fbxModel);
-          
-          // Animaciones
-          if (gltf.animations?.length) {
-              mixer = new THREE.AnimationMixer(fbxModel);
-              mixer.clipAction(gltf.animations[0]).play();
-          }
-      },
-      undefined,
-      function (error) {
-          console.error('Error al cargar el modelo:', error);
-          createFallbackModel(posX, posZ);
+// —— Carga GLB ——
+function agregarGLB(x,z) {
+  new THREE.GLTFLoader().load(
+    '/models/characters/shrek_walk_cycle.glb',
+    gltf => {
+      fbxModel = gltf.scene;
+      const s = Math.min(ancho,alto)*0.12;
+      fbxModel.scale.set(s,s,s);
+      fbxModel.position.set(x, s*0.015, z);
+      fbxModel.traverse(n=>n.isMesh && (n.castShadow=n.receiveShadow=true));
+      scene.add(fbxModel);
+      if (gltf.animations.length) {
+        mixer = new THREE.AnimationMixer(fbxModel);
+        mixer.clipAction(gltf.animations[0]).play();
       }
+    },
+    undefined,
+    _=>console.error('Error cargando modelo')
   );
 }
 
-function createFallbackModel(posX, posZ) {
-  const size = Math.min(ancho, alto) * 0.1;
-  const geometry = new THREE.CylinderGeometry(size*0.5, size, size*2, 8);
-  const material = new THREE.MeshStandardMaterial({ 
-      color: 0x44aa88,
-      metalness: 0.2,
-      roughness: 0.7
-  });
-  const model = new THREE.Mesh(geometry, material);
-  model.position.set(posX, size, posZ);
-  model.rotation.x = Math.PI * 0.5;
-  model.castShadow = true;
-  scene.add(model);
-}
-
+// —— Leer JSON de laberinto ——
 function handleFileUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        try {
-            const data = JSON.parse(event.target.result);
-            ancho = data.ancho;
-            alto = data.alto;
-            paredes = data.paredes;
-            inicio = data.inicio;
-            fin = data.fin;
-            document.getElementById("createButton").style.display = "inline-block";
-        } catch (err) {
-            alert("Error al leer el archivo JSON.");
-        }
-    };
-    reader.readAsText(file);
+  const file = e.target.files[0];
+  if (!file) return;
+  const rdr = new FileReader();
+  rdr.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      ancho   = d.ancho;
+      alto    = d.alto;
+      paredes = d.paredes;
+      inicio  = d.inicio;
+      fin     = d.fin;
+      document.getElementById('createButton').style.display = 'inline-block';
+    } catch {
+      alert('JSON inválido');
+    }
+  };
+  rdr.readAsText(file);
 }
 
-// Inicializar la aplicación
+// —— Algoritmos de búsqueda ——
+const key = ([x,y]) => `${x},${y}`;
+function getNeighbors([x,y]) {
+  return [[1,0],[-1,0],[0,1],[0,-1]]
+    .map(([dx,dy]) => [x+dx,y+dy])
+    .filter(([nx,ny]) =>
+      nx>=0 && nx<ancho && ny>=0 && ny<alto &&
+      !paredes.some(p=>p[0]===nx&&p[1]===ny)
+    );
+}
+
+function bfs(start, goal) {
+  const q = [start], seen = new Set([key(start)]), parent = {};
+  while(q.length){
+    const u = q.shift();
+    if(key(u)===key(goal)) break;
+    for(const v of getNeighbors(u)){
+      const kv = key(v);
+      if(!seen.has(kv)){
+        seen.add(kv);
+        parent[kv]=u;
+        q.push(v);
+      }
+    }
+  }
+  const path=[], kg=key(goal);
+  let cur=kg;
+  while(cur){
+    path.push(cur.split(',').map(Number));
+    cur = parent[cur]? key(parent[cur]): null;
+  }
+  return path.reverse();
+}
+
+function dijkstra(start, goal){
+  class PQ{constructor(){this.A=[]}
+    enqueue(n,p){this.A.push({n,p});this.A.sort((a,b)=>a.p-b.p)}
+    dequeue(){return this.A.shift().n}
+    isEmpty(){return this.A.length===0}
+  }
+  const dist={}, parent={}, pq=new PQ();
+  dist[key(start)]=0; pq.enqueue(start,0);
+  while(!pq.isEmpty()){
+    const u = pq.dequeue(), ku=key(u);
+    if(ku===key(goal)) break;
+    for(const v of getNeighbors(u)){
+      const kv=key(v), alt=dist[ku]+1;
+      if(alt < (dist[kv] ?? Infinity)){
+        dist[kv]=alt; parent[kv]=u;
+        pq.enqueue(v,alt);
+      }
+    }
+  }
+  const path=[], kg=key(goal);
+  let cur2=kg;
+  while(cur2){
+    path.push(cur2.split(',').map(Number));
+    cur2 = parent[cur2]? cur2=key(parent[cur2]): null;
+  }
+  return path.reverse();
+}
+
+function heuristic([x1,y1],[x2,y2]){
+  return Math.abs(x1-x2)+Math.abs(y1-y2);
+}
+
+function astar(start, goal){
+  class PQ2{constructor(){this.A=[]}
+    enqueue(n,p){this.A.push({n,p});this.A.sort((a,b)=>a.p-b.p)}
+    dequeue(){return this.A.shift().n}
+    isEmpty(){return this.A.length===0}
+  }
+  const g={}, f={}, parent={}, open=new PQ2();
+  const ks=key(start), kg=key(goal);
+  g[ks]=0; f[ks]=heuristic(start,goal); open.enqueue(start,f[ks]);
+  while(!open.isEmpty()){
+    const u=open.dequeue(), ku=key(u);
+    if(ku===kg) break;
+    for(const v of getNeighbors(u)){
+      const kv=key(v), tg=g[ku]+1;
+      if(tg < (g[kv] ?? Infinity)){
+        parent[kv]=u; g[kv]=tg; f[kv]=tg+heuristic(v,goal);
+        open.enqueue(v,f[kv]);
+      }
+    }
+  }
+  const path=[]; let cur3=kg;
+  while(cur3){
+    path.push(cur3.split(',').map(Number));
+    cur3 = parent[cur3]? key(parent[cur3]): null;
+  }
+  return path.reverse();
+}
+
+// —— Lógica para lanzar la búsqueda y mover el muñeco ——
+function runSearch(){
+  let path = bfs(inicio, fin);
+  const algo = document.getElementById('algoSelect').value;
+  if(algo==='dijkstra') path = dijkstra(inicio, fin);
+  if(algo==='astar')    path = astar(inicio, fin);
+  startMovement(path);
+}
+
+function gridToWorld([i,j]){
+  // mismo cálculo que para paredes/modelo
+  const x = i - Math.floor(ancho/2) + 0.5;
+  const z = j - Math.floor(alto /2) + 0.5;
+  return new THREE.Vector3(x, fbxModel.position.y, z);
+}
+
+function startMovement(path){
+  movementQueue  = path.map(gridToWorld);
+  movementTarget = null;
+  // (podrías reproducir la animación de caminar aquí)
+}
+
+function resetMovement(){
+  movementQueue  = [];
+  movementTarget = null;
+  const [ix,iy] = inicio;
+  const pos = gridToWorld([ix,iy]);
+  fbxModel.position.copy(pos);
+  mixer?.stopAllAction();
+  mixer?.clipAction(mixer._actions[0]?.getClip())?.play();
+}
+
+function updateMovement(delta){
+  if(!fbxModel || (movementQueue.length===0 && !movementTarget)) return;
+  if(!movementTarget){
+    movementTarget = movementQueue.shift();
+    movementDir = movementTarget.clone().sub(fbxModel.position).normalize();
+    // girar hacia target
+    const look = movementTarget.clone(); look.y = fbxModel.position.y;
+    fbxModel.lookAt(look);
+  }
+  const step = movementSpeed * delta;
+  const dist = fbxModel.position.distanceTo(movementTarget);
+  if(step >= dist){
+    fbxModel.position.copy(movementTarget);
+    movementTarget = null;
+  } else {
+    fbxModel.position.add(movementDir.clone().multiplyScalar(step));
+  }
+}
+
+// —— Arrancar la app ——
 init();

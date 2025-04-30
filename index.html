@@ -2,27 +2,37 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IA1 - MazeBot</title>
   <link rel="stylesheet" href="css/index.css">
-  <!-- CDN de Three.js -->
+</head>
+<body>
+
+  <div id="modal">
+    <div id="modalContent">
+      <h2>Bienvenido a MazeBot</h2>
+      <p>Sube tu archivo JSON para generar el laberinto.</p>
+      <input type="file" id="jsonInput" accept=".json"><br>
+      <button id="createButton">Crear Laberinto</button>
+    </div>
+  </div>
+
+  <div id="controls" style="display:none; position:absolute; top:10px; left:10px; z-index:10;">
+    <select id="algoSelect">
+      <option value="bfs">BFS</option>
+      <option value="dijkstra">Dijkstra</option>
+      <option value="astar">A*</option>
+    </select>
+    <button id="runButton">Ejecutar</button>
+    <button id="resetButton">Reiniciar</button>
+  </div>
+
+  <!-- 1) Cargamos primero las UMD de Three.js y sus addons -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.min.js"></script>
-</head>
 
-<body>
-
-<div id="modal">
-  <div id="modalContent">
-    <h2>Bienvenido a MazeBot</h2>
-    <p>Sube tu archivo JSON para generar el laberinto.</p>
-    <input type="file" id="jsonInput" accept=".json"><br>
-    <button id="createButton">Crear Laberinto</button>
-  </div>
-</div>
-
-
-<script src="js/index.js"></script>
-
+  <!-- 2) Ahora cargamos nuestro index.js como script normal -->
+  <script src="js/index.js"></script>
 </body>
 </html>
