@@ -173,7 +173,7 @@ function agregarGLB(posX, posZ) {
   const loader = new THREE.GLTFLoader();
 
   loader.load(
-      '/IA1_1S2025_P3_G4/models/characters/shrek_walk_cycle.glb',
+      '/models/characters/shrek_walk_cycle.glb',
       function (gltf) {
           fbxModel = gltf.scene;
           
