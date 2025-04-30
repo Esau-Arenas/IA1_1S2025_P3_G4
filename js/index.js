@@ -64,11 +64,24 @@ function init() {
 function animate() {
   requestAnimationFrame(animate);
   const delta = clock.getDelta();
-
-  controls.update();
-  if (mixer) mixer.update(delta);
+  
+  // Actualizar animaciones
+  if (mixer) {
+    mixer.update(delta);
+    
+    // Debug: Mostrar estado de la animación
+    if (fbxModel?.userData?.walkAction) {
+      const action = fbxModel.userData.walkAction;
+      console.log(`Animación: ${action.paused ? 'Pausada' : 'Reproduciendo'}, Tiempo: ${action.time.toFixed(2)}`);
+    }
+  }
+  
+  // Actualizar movimiento
   updateMovement(delta);
-
+  
+  // Actualizar controles de cámara
+  controls.update();
+  
   renderer.render(scene, camera);
 }
 
@@ -137,26 +150,56 @@ function addLightsIfNeeded() {
 }
 
 // —— Carga GLB ——
-function agregarGLB(x,z) {
+function agregarGLB(x, z) {
   new THREE.GLTFLoader().load(
     '/models/characters/shrek_walk_cycle.glb',
     gltf => {
       fbxModel = gltf.scene;
-      const s = Math.min(ancho,alto)*0.12;
-      fbxModel.scale.set(s,s,s);
-      fbxModel.position.set(x, s*0.015, z);
-      fbxModel.traverse(n=>n.isMesh && (n.castShadow=n.receiveShadow=true));
+      const s = Math.min(ancho, alto) * 0.12;
+      fbxModel.scale.set(s, s, s);
+      fbxModel.position.set(x, s * 0.015, z);
+      
+      // Configuración de sombras
+      fbxModel.traverse(n => {
+        if (n.isMesh) {
+          n.castShadow = true;
+          n.receiveShadow = true;
+        }
+      });
+      
       scene.add(fbxModel);
-      if (gltf.animations.length) {
+      
+      // Configuración específica para animación Mixamo
+      if (gltf.animations?.length) {
         mixer = new THREE.AnimationMixer(fbxModel);
-        mixer.clipAction(gltf.animations[0]).play();
+        
+        // Identificar y usar específicamente la animación mixamo.com
+        const mixamoAnimation = gltf.animations.find(a => a.name.includes('mixamo.com'));
+        if (!mixamoAnimation) {
+          console.error('No se encontró la animación mixamo.com');
+          return;
+        }
+        
+        // Configurar la acción de caminar
+        const walkAction = mixer.clipAction(mixamoAnimation);
+        walkAction.clampWhenFinished = false;
+        walkAction.loop = THREE.LoopRepeat;
+        
+        // Almacenar referencia
+        fbxModel.userData.walkAction = walkAction;
+        
+        // Iniciar pausada
+        walkAction.play();
+        walkAction.paused = true;
+        
+        console.log('Animación mixamo.com cargada correctamente');
       }
+      
     },
     undefined,
-    _=>console.error('Error cargando modelo')
+    error => console.error('Error cargando modelo:', error)
   );
 }
-
 // —— Leer JSON de laberinto ——
 function handleFileUpload(e) {
   const file = e.target.files[0];
@@ -289,38 +332,80 @@ function gridToWorld([i,j]){
 }
 
 function startMovement(path){
-  movementQueue  = path.map(gridToWorld);
+  if (!fbxModel || !path.length) return;
+  
+  movementQueue = path.map(gridToWorld);
   movementTarget = null;
-  // (podrías reproducir la animación de caminar aquí)
+  
+  // Activar animación mixamo de caminar
+  if (fbxModel.userData.walkAction) {
+    fbxModel.userData.walkAction.paused = false;
+    fbxModel.userData.walkAction.setEffectiveTimeScale(1.5); // Velocidad normal
+    console.log('Animación de caminar iniciada');
+  }
 }
 
 function resetMovement(){
-  movementQueue  = [];
+  movementQueue = [];
   movementTarget = null;
-  const [ix,iy] = inicio;
-  const pos = gridToWorld([ix,iy]);
+  
+  const [ix, iy] = inicio;
+  const pos = gridToWorld([ix, iy]);
   fbxModel.position.copy(pos);
-  mixer?.stopAllAction();
-  mixer?.clipAction(mixer._actions[0]?.getClip())?.play();
+  fbxModel.rotation.set(0, 0, 0);
+  
+  // Pausar animación al resetear
+  if (fbxModel.userData.walkAction) {
+    fbxModel.userData.walkAction.paused = true;
+  }
 }
 
 function updateMovement(delta){
-  if(!fbxModel || (movementQueue.length===0 && !movementTarget)) return;
-  if(!movementTarget){
-    movementTarget = movementQueue.shift();
-    movementDir = movementTarget.clone().sub(fbxModel.position).normalize();
-    // girar hacia target
-    const look = movementTarget.clone(); look.y = fbxModel.position.y;
-    fbxModel.lookAt(look);
+  if (!fbxModel) return;
+
+  // Actualizar movimiento si hay objetivos
+  if (movementTarget || movementQueue.length > 0) {
+    if (!movementTarget && movementQueue.length > 0) {
+      movementTarget = movementQueue.shift();
+      const lookAtPos = movementTarget.clone();
+      lookAtPos.y = fbxModel.position.y;
+      fbxModel.lookAt(lookAtPos);
+    }
+
+    if (movementTarget) {
+      const step = movementSpeed * delta;
+      const direction = movementTarget.clone().sub(fbxModel.position).normalize();
+      const distance = fbxModel.position.distanceTo(movementTarget);
+
+      if (step >= distance) {
+        fbxModel.position.copy(movementTarget);
+        movementTarget = null;
+      } else {
+        fbxModel.position.add(direction.multiplyScalar(step));
+      }
+    }
+  } 
+  // Desactivar animación cuando no hay movimiento
+  else if (fbxModel.userData.walkAction && !fbxModel.userData.walkAction.paused) {
+    fbxModel.userData.walkAction.paused = true;
+    console.log('Animación de caminar pausada');
   }
-  const step = movementSpeed * delta;
-  const dist = fbxModel.position.distanceTo(movementTarget);
-  if(step >= dist){
-    fbxModel.position.copy(movementTarget);
-    movementTarget = null;
-  } else {
-    fbxModel.position.add(movementDir.clone().multiplyScalar(step));
+}
+
+// Función para transiciones suaves entre animaciones
+function fadeToAction(action, duration) {
+  const currentAction = fbxModel.userData.animations[fbxModel.userData.currentAnimation];
+  
+  if (currentAction) {
+    currentAction.fadeOut(duration);
   }
+  
+  action
+    .reset()
+    .setEffectiveTimeScale(1)
+    .setEffectiveWeight(1)
+    .fadeIn(duration)
+    .play();
 }
 
 // —— Arrancar la app ——
