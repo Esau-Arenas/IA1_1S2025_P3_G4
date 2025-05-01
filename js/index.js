@@ -6,7 +6,7 @@ let brickTexture, grassTexture;
 let paredes = [], ancho = 0, alto = 0;
 let inicio = [0,0], fin = [0,0];
 let fbxModel, mixer;
-
+let backgroundMusic;
 const clock = new THREE.Clock();
 
 // Cola de movimiento
@@ -56,7 +56,23 @@ function init() {
   document.getElementById('runButton'   ).addEventListener('click', runSearch);
   document.getElementById('resetButton' ).addEventListener('click', resetMovement);
 
+  // Inicializar audio
+  const listener = new THREE.AudioListener();
+  camera.add(listener);
+  backgroundMusic = new THREE.Audio(listener);
+
   animate();
+
+  // En la función init(), después de inicializar los eventos:
+  document.getElementById('musicToggle').addEventListener('click', function() {
+    if (backgroundMusic.isPlaying) {
+      backgroundMusic.pause();
+      this.textContent = '🔊 Sonido';
+    } else {
+      backgroundMusic.play();
+      this.textContent = '🔇 Silenciar';
+    }
+  });
 }
 
 // —— Render loop ——
@@ -466,6 +482,12 @@ function* astarGenerator(start, goal) {
 // antes de arrancar la búsqueda, guarda la celda previa:
 let _searchPrev;             
 function runSearch() {
+  
+  // Iniciar música si no está ya reproduciéndose
+  if (!backgroundMusic.isPlaying) {
+    playBackgroundMusic();
+  }
+
   _searchPrev = [...inicio];
   const algo = document.getElementById('algoSelect').value;
   let gen;
@@ -656,6 +678,26 @@ function setupHDREnvironment(exrTexture) {
   const dirLight = new THREE.DirectionalLight(0xffffff, 0.3);
   dirLight.position.set(0, 5, 1); // Posición más baja
   scene.add(dirLight);
+}
+
+function playBackgroundMusic() {
+  // Cargar música (reemplaza con tu archivo de audio)
+  const audioLoader = new THREE.AudioLoader();
+  audioLoader.load(
+    '/sounds/fondo.mp3', // Ruta a tu archivo de música
+    function(buffer) {
+      backgroundMusic.setBuffer(buffer);
+      backgroundMusic.setLoop(true);
+      backgroundMusic.setVolume(0.5); // Ajustar volumen (0 a 1)
+      backgroundMusic.play();
+    },
+    function(xhr) {
+      console.log((xhr.loaded / xhr.total * 100) + '% cargado');
+    },
+    function(error) {
+      console.error('Error cargando audio:', error);
+    }
+  );
 }
 
 // —— Arrancar la app ——
