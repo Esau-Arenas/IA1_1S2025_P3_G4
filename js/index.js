@@ -326,14 +326,130 @@ function astar(start, goal){
   return path.reverse();
 }
 
+// bfs paso‑a‑paso
+function* bfsGenerator(start, goal) {
+  const q = [start];
+  const seen = new Set([key(start)]);
+  const parent = {};
+  while (q.length) {
+    const u = q.shift();
+    yield u;                                 // cede posición actual
+    if (key(u) === key(goal)) break;
+    for (const v of getNeighbors(u)) {
+      const kv = key(v);
+      if (!seen.has(kv)) {
+        seen.add(kv);
+        parent[kv] = u;
+        q.push(v);
+      }
+    }
+  }
+  // al final devolver el camino
+  const path = [];
+  let cur = key(goal);
+  while (cur) {
+    path.push(cur.split(',').map(Number));
+    cur = parent[cur] && key(parent[cur]);
+  }
+  return path.reverse();
+}
+
+// genera pasos de Dijkstra
+function* dijkstraGenerator(start, goal) {
+  class PQ{constructor(){this.A=[]}
+    enqueue(n,p){this.A.push({n,p});this.A.sort((a,b)=>a.p-b.p)}
+    dequeue(){return this.A.shift().n}
+    isEmpty(){return this.A.length===0}
+  }
+  const dist = {}, parent = {}, pq = new PQ();
+  dist[key(start)] = 0; pq.enqueue(start,0);
+  while(!pq.isEmpty()){
+    const u = pq.dequeue(), ku = key(u);
+    yield u;
+    if(ku === key(goal)) break;
+    for(const v of getNeighbors(u)){
+      const kv = key(v), alt = dist[ku] + 1;
+      if(alt < (dist[kv] ?? Infinity)){
+        dist[kv] = alt;
+        parent[kv] = u;
+        pq.enqueue(v, alt);
+      }
+    }
+  }
+  // reconstruir camino…
+  const path = [], kg = key(goal);
+  let cur = kg;
+  while(cur){
+    path.push(cur.split(',').map(Number));
+    cur = parent[cur] && key(parent[cur]);
+  }
+  return path.reverse();
+}
+
+// genera pasos de A*
+function* astarGenerator(start, goal) {
+  class PQ2{constructor(){this.A=[]}
+    enqueue(n,p){this.A.push({n,p});this.A.sort((a,b)=>a.p-b.p)}
+    dequeue(){return this.A.shift().n}
+    isEmpty(){return this.A.length===0}
+  }
+  const g = {}, f = {}, parent = {}, open = new PQ2();
+  const ks = key(start), kg = key(goal);
+  g[ks]=0; f[ks]=heuristic(start,goal); open.enqueue(start,f[ks]);
+  while(!open.isEmpty()){
+    const u = open.dequeue(), ku = key(u);
+    yield u;
+    if(ku===kg) break;
+    for(const v of getNeighbors(u)){
+      const kv = key(v), ng = g[ku] + 1;
+      if(ng < (g[kv] ?? Infinity)){
+        g[kv] = ng;
+        parent[kv] = u;
+        f[kv] = ng + heuristic(v,goal);
+        open.enqueue(v, f[kv]);
+      }
+    }
+  }
+  // reconstruir camino…
+  const path = []; let cur = kg;
+  while(cur){
+    path.push(cur.split(',').map(Number));
+    cur = parent[cur] && key(parent[cur]);
+  }
+  return path.reverse();
+}
+
+// dispara la búsqueda animada
+function runSearch() {
+  const algo = document.getElementById('algoSelect').value;
+  let gen;
+  if (algo === 'dijkstra')    gen = dijkstraGenerator(inicio, fin);
+  else if (algo === 'astar')   gen = astarGenerator(inicio, fin);
+  else                         gen = bfsGenerator(inicio, fin);
+  stepSearch(gen);
+}
+
+// itera el generador a velocidad constante
+function stepSearch(gen) {
+  const { value, done } = gen.next();
+  if (!done) {
+    // mueve el muñeco al nodo explorado
+    fbxModel.position.copy(gridToWorld(value));
+    setTimeout(() => stepSearch(gen), 150); // ajustar velocidad aquí
+  } else {
+    // cuando termina, ‘value’ es el camino completo
+    startMovement(value);
+  }
+}
+
 // —— Lógica para lanzar la búsqueda y mover el muñeco ——
-function runSearch(){
+/*function runSearch(){
   let path = bfs(inicio, fin);
   const algo = document.getElementById('algoSelect').value;
   if(algo==='dijkstra') path = dijkstra(inicio, fin);
   if(algo==='astar')    path = astar(inicio, fin);
   startMovement(path);
-}
+}*/
 
 function gridToWorld([i,j]){
   // mismo cálculo que para paredes/modelo
