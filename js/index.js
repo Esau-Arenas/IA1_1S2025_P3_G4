@@ -208,11 +208,22 @@ function handleFileUpload(e) {
   rdr.onload = ev => {
     try {
       const d = JSON.parse(ev.target.result);
-      ancho   = d.ancho;
-      alto    = d.alto;
-      paredes = d.paredes;
-      inicio  = d.inicio;
-      fin     = d.fin;
+      const { ancho: a, alto: h, inicio: ini, fin: f, paredes: murs } = d;
+
+      // ← Validación: inicio/fin no pueden caer en pared
+      const isEnPared = pos => murs.some(p => p[0] === pos[0] && p[1] === pos[1]);
+      if (isEnPared(ini) || isEnPared(f)) {
+        alert('Error: la posición de inicio o fin está en una pared.');
+        return;
+      }
+
+      // asignar valores globales sólo si pasa la validación
+      ancho   = a;
+      alto    = h;
+      paredes = murs;
+      inicio  = ini;
+      fin     = f;
+
       document.getElementById('createButton').style.display = 'inline-block';
     } catch {
       alert('JSON inválido');
