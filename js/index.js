@@ -419,8 +419,10 @@ function* astarGenerator(start, goal) {
   return path.reverse();
 }
 
-// dispara la búsqueda animada
+// antes de arrancar la búsqueda, guarda la celda previa:
+let _searchPrev;             
 function runSearch() {
+  _searchPrev = [...inicio];
   const algo = document.getElementById('algoSelect').value;
   let gen;
   if (algo === 'dijkstra')    gen = dijkstraGenerator(inicio, fin);
@@ -433,13 +435,34 @@ function runSearch() {
 function stepSearch(gen) {
   const { value, done } = gen.next();
   if (!done) {
-    // mueve el muñeco al nodo explorado
-    fbxModel.position.copy(gridToWorld(value));
-    setTimeout(() => stepSearch(gen), 150); // ajustar velocidad aquí
-  } else {
-    // cuando termina, ‘value’ es el camino completo
-    startMovement(value);
+    const next = value;          // [i,j] del generador
+    const prev = _searchPrev;    // última celda visitada
+
+    // 1) Si es pared, la descartamos
+    if (paredes.some(p => p[0] === next[0] && p[1] === next[1])) {
+      _searchPrev = [...next];
+      return setTimeout(() => stepSearch(gen), 150);
+    }
+
+    // 2) Reconstruir camino cardinal entre prev y next
+    let subPath = bfs(prev, next);
+    // eliminar el primer nodo si es la misma posición
+    if (subPath.length && key(subPath[0]) === key(prev)) subPath.shift();
+    
+    // 3) Encolar cada paso del sub‑camino
+    subPath.forEach(node => {
+      movementQueue.push(gridToWorld(node));
+    });
+
+    _searchPrev = [...next];
+
+    // 4) Asegurar animación caminando
+    const walk = fbxModel.userData.walkAction;
+    if (walk && walk.paused) walk.paused = false;
+
+    return setTimeout(() => stepSearch(gen), 150);
   }
+  // al acabar, el personaje queda en la última posición de movementQueue
 }
 
 // —— Lógica para lanzar la búsqueda y mover el muñeco ——
