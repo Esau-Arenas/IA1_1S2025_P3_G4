@@ -19,7 +19,6 @@ const movementSpeed = 2; // unidades/segundo
 function init() {
   // Escena
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xf0f0f0);
 
   // Cámara
   camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
@@ -94,8 +93,9 @@ function onWindowResize() {
 
 // —— Crear laberinto ——
 function crearLaberinto() {
+  create360BackgroundEXR();
   // Ocultar modal y mostrar controles
-  document.getElementById('modal'   ).style.display = 'none';
+  document.getElementById('modal').style.display = 'none';
   document.getElementById('controls').style.display = 'block';
 
   // Limpiar escena (menos luces y cámara)
@@ -120,10 +120,44 @@ function crearLaberinto() {
     w.position.set(
       x - Math.floor(ancho/2) + 0.5,
       1,
-      y - Math.floor(alto /2) + 0.5
+      y - Math.floor(alto/2) + 0.5
     );
     scene.add(w);
   });
+
+  // Marcador de inicio (rojo)
+  const startMarker = new THREE.Mesh(
+    new THREE.CircleGeometry(0.4, 32),
+    new THREE.MeshStandardMaterial({ 
+      color: 0xff0000, 
+      metalness: 0.3,
+      roughness: 0.7
+    })
+  );
+  startMarker.rotation.x = -Math.PI/2;
+  startMarker.position.set(
+    inicio[0] - Math.floor(ancho/2) + 0.5,
+    0.01,
+    inicio[1] - Math.floor(alto/2) + 0.5
+  );
+  scene.add(startMarker);
+
+  // Marcador de fin (verde)
+  const endMarker = new THREE.Mesh(
+    new THREE.CircleGeometry(0.4, 32),
+    new THREE.MeshStandardMaterial({ 
+      color: 0x00ff00,
+      metalness: 0.3,
+      roughness: 0.7
+    })
+  );
+  endMarker.rotation.x = -Math.PI/2;
+  endMarker.position.set(
+    fin[0] - Math.floor(ancho/2) + 0.5,
+    0.01,
+    fin[1] - Math.floor(alto/2) + 0.5
+  );
+  scene.add(endMarker);
 
   // Carga y posiciona el modelo
   const [sx,sy] = inicio;
@@ -139,13 +173,23 @@ function crearLaberinto() {
 // —— Luces ——
 function addLightsIfNeeded() {
   if (!scene.children.some(o=>o.isLight)) {
-    const d1 = new THREE.DirectionalLight(0xffffff,1);
-    d1.position.set(10,20,10);
+    // Luz ambiental más cálida y menos intensa
+    scene.add(new THREE.AmbientLight(0xfff4e6, 0.5)); // Color cálido, intensidad reducida
+    
+    // Luz direccional principal (sol) - más suave y cálida
+    const d1 = new THREE.DirectionalLight(0xfff4e6, 0.6); // Color cálido, intensidad reducida
+    d1.position.set(5, 15, 5); // Posición más baja y centrada
+    d1.castShadow = true;
+    d1.shadow.mapSize.width = 1024; // Resolución de sombra reducida para mejor rendimiento
+    d1.shadow.mapSize.height = 1024;
+    d1.shadow.radius = 2; // Suavizado de sombras
     scene.add(d1);
-    scene.add(new THREE.AmbientLight(0x404040));
-    const d2 = new THREE.DirectionalLight(0xffffff,0.5);
-    d2.position.set(-10,10,-10);
-    scene.add(d2);
+    
+    // Eliminamos la segunda luz direccional dura
+    // En su lugar, añadimos una luz hemisférica para iluminación ambiental suave
+    const hemiLight = new THREE.HemisphereLight(0xfff4e6, 0x445588, 0.4);
+    hemiLight.position.set(0, 10, 0);
+    scene.add(hemiLight);
   }
 }
 
@@ -155,7 +199,7 @@ function agregarGLB(x, z) {
     '/models/characters/shrek_walk_cycle.glb',
     gltf => {
       fbxModel = gltf.scene;
-      const s = Math.min(ancho, alto) * 0.12;
+      const s = Math.min(ancho, alto) * 0.10;
       fbxModel.scale.set(s, s, s);
       fbxModel.position.set(x, s * 0.015, z);
       
@@ -556,6 +600,62 @@ function fadeToAction(action, duration) {
     .setEffectiveWeight(1)
     .fadeIn(duration)
     .play();
+}
+
+function create360BackgroundEXR() {
+  // 1. Usar EXRLoader en lugar de TextureLoader
+  const exrLoader = new THREE.EXRLoader();
+  
+  exrLoader.load(
+    '/models/meadow_4k.exr',
+    (texture) => {
+      // 2. Configuración avanzada para HDR
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      texture.encoding = THREE.LinearEncoding; // ¡Importante! Para HDR
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      
+      // 3. Crear esfera de fondo
+      const geometry = new THREE.SphereGeometry(500, 128, 128);
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.BackSide,
+        fog: false
+      });
+      
+      const backgroundSphere = new THREE.Mesh(geometry, material);
+      backgroundSphere.renderOrder = -1;
+      scene.add(backgroundSphere);
+      
+      // 4. Configurar entorno e iluminación HDR
+      setupHDREnvironment(texture);
+    },
+    undefined,
+    (error) => {
+      console.error('Error loading EXR:', error);
+      loadFallbackBackground();
+    }
+  );
+}
+
+function setupHDREnvironment(exrTexture) {
+  scene.environment = exrTexture;
+  
+  // Ajustes más sutiles para el tonemapping
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.5; // Exposición reducida
+  
+  // Niebla más sutil
+  scene.fog = new THREE.FogExp2(0x888899, 0.0005); // Niebla más clara y menos densa
+  
+  // Iluminación ambiental suave
+  const ambientLight = new THREE.AmbientLight(0xfff4e6, 0.4); // Luz cálida y suave
+  scene.add(ambientLight);
+  
+  // Luz direccional muy suave
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.3);
+  dirLight.position.set(0, 5, 1); // Posición más baja
+  scene.add(dirLight);
 }
 
 // —— Arrancar la app ——
