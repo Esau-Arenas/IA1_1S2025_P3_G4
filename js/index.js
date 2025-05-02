@@ -212,7 +212,7 @@ function addLightsIfNeeded() {
 // —— Carga GLB ——
 function agregarGLB(x, z) {
   new THREE.GLTFLoader().load(
-    '/IA1_1S2025_P3_G4/models/characters/shrek_walk_cycle.glb',
+    './models/characters/shrek_walk_cycle.glb',
     gltf => {
       fbxModel = gltf.scene;
       const s = Math.min(ancho, alto) * 0.10;
@@ -684,7 +684,7 @@ function playBackgroundMusic() {
   // Cargar música (reemplaza con tu archivo de audio)
   const audioLoader = new THREE.AudioLoader();
   audioLoader.load(
-    '/IA1_1S2025_P3_G4/sounds/fondo.mp3', // Ruta a tu archivo de música
+    '../sounds/fondo.mp3', // Ruta a tu archivo de música
     function(buffer) {
       backgroundMusic.setBuffer(buffer);
       backgroundMusic.setLoop(true);
