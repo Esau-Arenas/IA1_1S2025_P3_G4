@@ -629,7 +629,7 @@ function create360BackgroundEXR() {
   const exrLoader = new THREE.EXRLoader();
   
   exrLoader.load(
-    '/IA1_1S2025_P3_G4/models/meadow_4k.exr',
+    './models/meadow_4k.exr',
     (texture) => {
       // 2. Configuración avanzada para HDR
       texture.mapping = THREE.EquirectangularReflectionMapping;
@@ -684,7 +684,7 @@ function playBackgroundMusic() {
   // Cargar música (reemplaza con tu archivo de audio)
   const audioLoader = new THREE.AudioLoader();
   audioLoader.load(
-    '../sounds/fondo.mp3', // Ruta a tu archivo de música
+    './sounds/fondo.mp3', // Ruta a tu archivo de música
     function(buffer) {
       backgroundMusic.setBuffer(buffer);
       backgroundMusic.setLoop(true);
