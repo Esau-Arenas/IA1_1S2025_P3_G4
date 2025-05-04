@@ -684,7 +684,7 @@ function playBackgroundMusic() {
   // Cargar música (reemplaza con tu archivo de audio)
   const audioLoader = new THREE.AudioLoader();
   audioLoader.load(
-    './sounds/fondo.mp3', // Ruta a tu archivo de música
+    './models/fondo.mp3', // Ruta a tu archivo de música
     function(buffer) {
       backgroundMusic.setBuffer(buffer);
       backgroundMusic.setLoop(true);
